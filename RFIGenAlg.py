@@ -14,7 +14,7 @@ class rfiGenAlg:
         if initWalker == None:
             self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
-            if np.random.rand()<0.01:
+            if np.random.rand()<0.03:
                 self.walkerArray.append(self.mutate(initWalker))
             else:
                 self.walkerArray.append(initWalker)
@@ -44,9 +44,10 @@ class rfiGenAlg:
         #print delfringeScore
         
     
-    def plotRFIMap(self):
+    def plotRFIMap(self,live=False):
         pl.imshow(self.initWalker,aspect='auto')
-        pl.show()
+        if live:
+            pl.show()
         
     def mutate(self,rfiMap):
         #if np.random.rand()>0.5:
@@ -108,7 +109,10 @@ class rfiGenAlg:
         offspring = np.zeros_like(self.data)
         top1 = self.walkerArray[np.argmin(self.walkerScore)]
         secondBestIndx = np.argwhere(self.walkerScore==np.sort(self.walkerScore)[1])
-        top2 = self.walkerArray[secondBestIndx[0]]
+        try:
+            top2 = self.walkerArray[secondBestIndx[0][0]]
+        except:
+            top2 = self.walkerArray[secondBestIndx[0]]
         matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/30)
         top1[:,matingChain] = top2[:,matingChain]
         self.initWalker = top1 #self.walkerArray[np.argmin(self.walkerScore)]
