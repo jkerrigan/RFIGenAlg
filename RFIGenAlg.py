@@ -14,7 +14,7 @@ class rfiGenAlg:
         if initWalker == None:
             self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
-            if np.random.rand()<0.03:
+            if np.random.rand()<0.02:
                 self.walkerArray.append(self.mutate(initWalker))
             else:
                 self.walkerArray.append(initWalker)
@@ -32,7 +32,7 @@ class rfiGenAlg:
     def mask(self):
         hole = np.ones_like(self.data)
         sh = np.shape(hole)
-        hole[:,sh[1]/2 - 50:sh[1]/2 + 50] = 0.
+        hole[:,sh[1]/2 - 20:sh[1]/2 + 20] = 0.
         #for i in range(-6,6):
         #    for j in range(-50,50):
         #        hole[sh[0]/2 + i,sh[1]/2 + j] = 0.
@@ -45,7 +45,7 @@ class rfiGenAlg:
         
     
     def plotRFIMap(self,live=False):
-        pl.imshow(self.initWalker,aspect='auto')
+        pl.imshow(self.initWalker,aspect='auto',interpolation='none')
         if live:
             pl.show()
         
@@ -55,13 +55,13 @@ class rfiGenAlg:
         #else:
         #    walker = rfiMap.flatten(order='F')
         sh = np.shape(rfiMap)
-        mutations = np.random.randint(0,50)
+        mutations = np.random.randint(0,500)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
-            if np.random.rand()>0.00: # I turned off RFI in frequency mutations
-                mut_freq = np.random.randint(0,sh[1])
-                mut_time_a = np.random.randint(0,sh[0])
-                mut_time_b = np.random.randint(0,sh[0])
+            if np.random.rand()>0.01: # I turned off RFI in frequency mutations
+                mut_freq = np.random.randint(0,sh[1]+1)
+                mut_time_a = np.random.randint(0,sh[0]+1)
+                mut_time_b = np.random.randint(0,sh[0]+1)
                 if mut_time_a>mut_time_b:
                     if np.random.rand()>0.1:
                         rfiMapC[mut_time_b:mut_time_a,mut_freq] = np.ones(mut_time_a-mut_time_b)
@@ -73,9 +73,9 @@ class rfiGenAlg:
                     else:
                         rfiMapC[mut_time_a:mut_time_b,mut_freq] = np.zeros(mut_time_b-mut_time_a)
             else:
-                mut_freq_a = np.random.randint(0,sh[1])
-                mut_freq_b = np.random.randint(0,sh[1])
-                mut_time = np.random.randint(0,sh[0])
+                mut_freq_a = np.random.randint(0,sh[1]+1)
+                mut_freq_b = np.random.randint(0,sh[1]+1)
+                mut_time = np.random.randint(0,sh[0]+1)
                 if mut_freq_a>mut_freq_b:
                     if np.random.rand()>0.1:
                         rfiMapC[mut_time,mut_freq_b:mut_freq_a] = np.ones(mut_freq_a-mut_freq_b)

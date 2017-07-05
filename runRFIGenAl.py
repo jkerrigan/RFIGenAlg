@@ -12,8 +12,8 @@ data = uv.data_array[:,0,:,0]
 print data.shape
 x = rfiGenAlg(data)
 
-pop_size = 300
-epochs = 5000
+pop_size = 20
+epochs = 30000
 start_time = timeit.default_timer()
 for i in range(epochs):
     clear_output()
@@ -24,6 +24,9 @@ for i in range(epochs):
 print 'Generation per sec. :',(1.*epochs)/np.round(timeit.default_timer() - start_time)
 
 run_time = np.round(timeit.default_timer() - start_time) 
+pl.subplot(211)
+pl.imshow(np.log10(np.abs(data)),aspect='auto',interpolation='none')
+pl.subplot(212)
 x.plotRFIMap(live=False)
 pl.savefig('RFIEvolved_'+str(run_time)+'.png')
 pl.close()

@@ -1,7 +1,7 @@
 #! /bin/bash
-#SBATCH -t 0:30:00
+#SBATCH -t 4:00:00
 #SBATCH -n 10                                                         
-#SBATCH --mem=10G                                                               
+#SBATCH --mem=4G                                                               
 #SBATCH -J HERAGenAlgTest
 ###SBATCH -p jpober-test
 ###SBATCH --output=/users/jkerriga/RFIGenAlg/GenAlg_%A_%a.out
