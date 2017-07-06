@@ -1,20 +1,22 @@
 import numpy as np
 import pyuvdata
 import pylab as pl
+import scipy.fftpack as sfft
 
 class rfiGenAlg:
     
-    def __init__(self,data):
+    def __init__(self,data,random_crossover = False):
         self.data = data
         self.walkerArray = []
         self.walkerScore = []
         self.epochScore = []
+        self.random_crossover = random_crossover
         
     def addWalker(self,initWalker=None):
         if initWalker == None:
             self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
-            if np.random.rand()<0.02:
+            if np.random.rand()<0.2:
                 self.walkerArray.append(self.mutate(initWalker))
             else:
                 self.walkerArray.append(initWalker)
@@ -24,7 +26,7 @@ class rfiGenAlg:
         return rfiMap
     
     def delTrans(self,walker_to_score):
-        WA_ = np.fft.fftshift(np.fft.fft(self.data*self.walkerArray[walker_to_score],axis=1),axes=1)
+        WA_ = sfft.fftshift(sfft.fft(self.data*self.walkerArray[walker_to_score],axis=1),axes=1)
         #_WA = np.fft.fftshift(np.fft.fft(WA_,axis=0),axes=0)
         ma_WA = self.mask()*WA_
         return np.sum(np.abs(ma_WA))
@@ -55,11 +57,11 @@ class rfiGenAlg:
         #else:
         #    walker = rfiMap.flatten(order='F')
         sh = np.shape(rfiMap)
-        mutations = np.random.randint(0,500)
+        mutations = np.random.randint(0,100)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
-            if np.random.rand()>0.01: # I turned off RFI in frequency mutations
-                mut_freq = np.random.randint(0,sh[1]+1)
+            if np.random.rand()>0.00: # I turned off RFI in frequency mutations
+                mut_freq = np.random.randint(0,sh[1])
                 mut_time_a = np.random.randint(0,sh[0]+1)
                 mut_time_b = np.random.randint(0,sh[0]+1)
                 if mut_time_a>mut_time_b:
@@ -75,7 +77,7 @@ class rfiGenAlg:
             else:
                 mut_freq_a = np.random.randint(0,sh[1]+1)
                 mut_freq_b = np.random.randint(0,sh[1]+1)
-                mut_time = np.random.randint(0,sh[0]+1)
+                mut_time = np.random.randint(0,sh[0])
                 if mut_freq_a>mut_freq_b:
                     if np.random.rand()>0.1:
                         rfiMapC[mut_time,mut_freq_b:mut_freq_a] = np.ones(mut_freq_a-mut_freq_b)
@@ -109,11 +111,15 @@ class rfiGenAlg:
         offspring = np.zeros_like(self.data)
         top1 = self.walkerArray[np.argmin(self.walkerScore)]
         secondBestIndx = np.argwhere(self.walkerScore==np.sort(self.walkerScore)[1])
+        print len(secondBestIndx),secondBestIndx
         try:
             top2 = self.walkerArray[secondBestIndx[0][0]]
         except:
             top2 = self.walkerArray[secondBestIndx[0]]
-        matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/30)
+        if self.random_crossover:
+            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,100))
+        else:
+            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
         top1[:,matingChain] = top2[:,matingChain]
         self.initWalker = top1 #self.walkerArray[np.argmin(self.walkerScore)]
         self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])

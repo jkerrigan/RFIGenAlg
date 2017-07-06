@@ -1,6 +1,6 @@
 #! /bin/bash
-#SBATCH -t 4:00:00
-#SBATCH -n 10                                                         
+#SBATCH -t 6:00:00
+#SBATCH -n 10                                                       
 #SBATCH --mem=4G                                                               
 #SBATCH -J HERAGenAlgTest
 ###SBATCH -p jpober-test
