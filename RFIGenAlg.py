@@ -11,13 +11,28 @@ class rfiGenAlg:
         self.walkerScore = []
         self.epochScore = []
         self.random_crossover = random_crossover
+        self.avgFitness = None
+        self.growthVolArray = []
+        self.mutRateArray = []
         
     def addWalker(self,initWalker=None):
         if initWalker == None:
             self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
-            if np.random.rand()<0.2:
-                self.walkerArray.append(self.mutate(initWalker))
+            #if np.random.rand()<0.2: Replaced with an adaptive mutation rate
+            mutationRate = np.abs(1 - self.epochScore[-1]/1.*self.avgFitness) 
+            self.mutRateArray.append(mutationRate)
+            if np.random.rand() < mutationRate:
+                try:
+                    growthVolatility = np.var(self.epochScore[:20])/np.var(self.epochScore[-20:])
+                except:
+                    growthVolatility = 0.01
+                self.growthVolArray.append(growthVolatility)
+                if np.random.rand() < growthVolatility:
+                    self.walkerArray.append(self.mutate(initWalker))
+                else:
+                    ### Grow mutations instead of introducing new mutations
+                    self.walkerArray.append(self.growMutations(initWalker))
             else:
                 self.walkerArray.append(initWalker)
         
@@ -34,7 +49,7 @@ class rfiGenAlg:
     def mask(self):
         hole = np.ones_like(self.data)
         sh = np.shape(hole)
-        hole[:,sh[1]/2 - 20:sh[1]/2 + 20] = 0.
+        hole[:,sh[1]/2 - 80:sh[1]/2 + 80] = 0.
         #for i in range(-6,6):
         #    for j in range(-50,50):
         #        hole[sh[0]/2 + i,sh[1]/2 + j] = 0.
@@ -57,10 +72,10 @@ class rfiGenAlg:
         #else:
         #    walker = rfiMap.flatten(order='F')
         sh = np.shape(rfiMap)
-        mutations = np.random.randint(0,100)
+        mutations = np.random.randint(0,50)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
-            if np.random.rand()>0.00: # I turned off RFI in frequency mutations
+            if np.random.rand()>0.0001: # I turned on minimal RFI in frequency mutations
                 mut_freq = np.random.randint(0,sh[1])
                 mut_time_a = np.random.randint(0,sh[0]+1)
                 mut_time_b = np.random.randint(0,sh[0]+1)
@@ -100,6 +115,26 @@ class rfiGenAlg:
         #else:
         #    walker[mut_a:mut_b] = mutation
         return rfiMapC #walker.reshape(np.shape(self.data))
+
+    def growMutations(self,rfiMap):
+        sh = np.shape(rfiMap)
+        rfiMapC = np.copy(rfiMap)
+        growthSites = np.random.randint(1,100)
+        for growth in range(growthSites):
+            i = np.random.randint(0,sh[0])
+            j = np.random.randint(0,sh[1])
+            if rfiMap[i,j] == 0:
+                try:
+                    rfiMapC[i,j+1] = np.random.randint(0,2)
+                    rfiMapC[i+1,j] = np.random.randint(0,2)
+                    rfiMapC[i+1,j+1] = np.random.randint(0,2)
+                    rfiMapC[i,j-1] = np.random.randint(0,2)
+                    rfiMapC[i-1,j] = np.random.randint(0,2)
+                    rfiMapC[i-1,j-1] = np.random.randint(0,2)
+                except:
+                    pass
+        return rfiMapC
+
         
     def resetWalkers(self):
         self.walkerArray = []
@@ -123,12 +158,12 @@ class rfiGenAlg:
         top1[:,matingChain] = top2[:,matingChain]
         self.initWalker = top1 #self.walkerArray[np.argmin(self.walkerScore)]
         self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])
+        self.avgFitness = np.mean(self.walkerScore)
         #else:
         #    self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])
 
         #print np.argmin(self.walkerScore),np.argmax(np.sum(np.sum(self.walkerArray,1),1))
-        
-        
+                
     def runEpoch(self,num_of_walkers,epoch):
         for i in range(num_of_walkers):
             if epoch == 0:
