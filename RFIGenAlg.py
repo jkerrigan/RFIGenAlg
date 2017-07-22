@@ -5,7 +5,7 @@ import scipy.fftpack as sfft
 
 class rfiGenAlg:
     
-    def __init__(self,data,random_crossover = False):
+    def __init__(self,data,random_crossover = False, initWalker = None):
         self.data = data
         self.walkerArray = []
         self.walkerScore = []
@@ -14,13 +14,17 @@ class rfiGenAlg:
         self.avgFitness = None
         self.growthVolArray = []
         self.mutRateArray = []
+        self.initWalker = initWalker
         
     def addWalker(self,initWalker=None):
         if initWalker == None:
             self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
             #if np.random.rand()<0.2: Replaced with an adaptive mutation rate
-            mutationRate = np.abs(1 - self.epochScore[-1]/1.*self.avgFitness) 
+            try:
+                mutationRate = self.epochScore[-1]/(1.*self.avgFitness) #np.abs(1 - self.epochScore[-1]/1.*self.avgFitness))
+            except:
+                mutationRate = 1.
             self.mutRateArray.append(mutationRate)
             if np.random.rand() < mutationRate:
                 try:
@@ -49,7 +53,7 @@ class rfiGenAlg:
     def mask(self):
         hole = np.ones_like(self.data)
         sh = np.shape(hole)
-        hole[:,sh[1]/2 - 80:sh[1]/2 + 80] = 0.
+        hole[:,sh[1]/2 - 100:sh[1]/2 + 100] = 0.
         #for i in range(-6,6):
         #    for j in range(-50,50):
         #        hole[sh[0]/2 + i,sh[1]/2 + j] = 0.
@@ -72,7 +76,7 @@ class rfiGenAlg:
         #else:
         #    walker = rfiMap.flatten(order='F')
         sh = np.shape(rfiMap)
-        mutations = np.random.randint(0,50)
+        mutations = np.random.randint(0,30)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
             if np.random.rand()>0.0001: # I turned on minimal RFI in frequency mutations
@@ -146,13 +150,13 @@ class rfiGenAlg:
         offspring = np.zeros_like(self.data)
         top1 = self.walkerArray[np.argmin(self.walkerScore)]
         secondBestIndx = np.argwhere(self.walkerScore==np.sort(self.walkerScore)[1])
-        print len(secondBestIndx),secondBestIndx
+        #print len(secondBestIndx),secondBestIndx
         try:
             top2 = self.walkerArray[secondBestIndx[0][0]]
         except:
             top2 = self.walkerArray[secondBestIndx[0]]
         if self.random_crossover:
-            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,100))
+            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,10))
         else:
             matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
         top1[:,matingChain] = top2[:,matingChain]
@@ -166,10 +170,11 @@ class rfiGenAlg:
                 
     def runEpoch(self,num_of_walkers,epoch):
         for i in range(num_of_walkers):
-            if epoch == 0:
-                self.addWalker()
-            else:
+            if self.initWalker != None:
                 self.addWalker(self.initWalker)
+            else:
+                self.addWalker()
+                #self.addWalker(self.initWalker)
             self.score(i)
         self.findBestWalker()
         self.resetWalkers()
