@@ -26,13 +26,13 @@ class rfiGenAlg:
             except:
                 mutationRate = 1.
             self.mutRateArray.append(mutationRate)
-            if np.random.rand() < mutationRate:
+            if np.var(self.epochScore) > np.abs(np.mean(self.epochScore) - self.epochScore[-1]):#np.random.rand() < mutationRate:
                 try:
-                    growthVolatility = np.var(self.epochScore[:20])/np.var(self.epochScore[-20:])
+                    growthVolatility = np.var(self.epochScore[:50])/np.var(self.epochScore[-50:])
                 except:
                     growthVolatility = 0.01
                 self.growthVolArray.append(growthVolatility)
-                if np.random.rand() < growthVolatility:
+                if np.random.rand() > 0.1:#growthVolatility:
                     self.walkerArray.append(self.mutate(initWalker))
                 else:
                     ### Grow mutations instead of introducing new mutations
@@ -46,6 +46,7 @@ class rfiGenAlg:
     
     def delTrans(self,walker_to_score):
         WA_ = sfft.fftshift(sfft.fft(self.data*self.walkerArray[walker_to_score],axis=1),axes=1)
+        #WA_ = sfft.fftshift(sfft.fft(self.data*self.walkerArray[walker_to_score],axis=0),axes=0)
         #_WA = np.fft.fftshift(np.fft.fft(WA_,axis=0),axes=0)
         ma_WA = self.mask()*WA_
         return np.sum(np.abs(ma_WA))
@@ -53,9 +54,10 @@ class rfiGenAlg:
     def mask(self):
         hole = np.ones_like(self.data)
         sh = np.shape(hole)
-        hole[:,sh[1]/2 - 100:sh[1]/2 + 100] = 0.
-        #for i in range(-6,6):
-        #    for j in range(-50,50):
+        hole[:,sh[1]/2 - 20:sh[1]/2 + 20] = 0.
+        #hole[sh[0]/2 - 5:sh[0]/2 +5,:] = 0
+        #for i in range(-10,10):
+        #    for j in range(-90,90):
         #        hole[sh[0]/2 + i,sh[1]/2 + j] = 0.
         return hole
         
@@ -76,7 +78,7 @@ class rfiGenAlg:
         #else:
         #    walker = rfiMap.flatten(order='F')
         sh = np.shape(rfiMap)
-        mutations = np.random.randint(0,30)
+        mutations = np.random.randint(0,100)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
             if np.random.rand()>0.0001: # I turned on minimal RFI in frequency mutations
@@ -121,22 +123,26 @@ class rfiGenAlg:
         return rfiMapC #walker.reshape(np.shape(self.data))
 
     def growMutations(self,rfiMap):
-        sh = np.shape(rfiMap)
+        #sh = np.shape(rfiMap)
+        zeros = np.array(np.where(rfiMap==0))
+        sh = np.shape(zeros)
         rfiMapC = np.copy(rfiMap)
-        growthSites = np.random.randint(1,100)
-        for growth in range(growthSites):
-            i = np.random.randint(0,sh[0])
-            j = np.random.randint(0,sh[1])
-            if rfiMap[i,j] == 0:
-                try:
-                    rfiMapC[i,j+1] = np.random.randint(0,2)
-                    rfiMapC[i+1,j] = np.random.randint(0,2)
-                    rfiMapC[i+1,j+1] = np.random.randint(0,2)
-                    rfiMapC[i,j-1] = np.random.randint(0,2)
-                    rfiMapC[i-1,j] = np.random.randint(0,2)
-                    rfiMapC[i-1,j-1] = np.random.randint(0,2)
-                except:
-                    pass
+        #growthSites = np.random.randint(1,100)
+        #for growth in range(growthSites):
+            #i = np.random.randint(0,sh[0])
+            #j = np.random.randint(0,sh[1])
+        i = zeros[0,:]
+        j = zeros[1,:]
+#        if rfiMap[i,j] == 0:
+        try:
+            rfiMapC[i,j+1] = np.random.randint(0,2)
+            rfiMapC[i+1,j] = np.random.randint(0,2)
+            rfiMapC[i+1,j+1] = np.random.randint(0,2)
+            rfiMapC[i,j-1] = np.random.randint(0,2)
+            rfiMapC[i-1,j] = np.random.randint(0,2)
+            rfiMapC[i-1,j-1] = np.random.randint(0,2)
+        except:
+            pass
         return rfiMapC
 
         
@@ -150,16 +156,22 @@ class rfiGenAlg:
         offspring = np.zeros_like(self.data)
         top1 = self.walkerArray[np.argmin(self.walkerScore)]
         secondBestIndx = np.argwhere(self.walkerScore==np.sort(self.walkerScore)[1])
+        thirdBestIndx = np.argwhere(self.walkerScore==np.sort(self.walkerScore)[2])
         #print len(secondBestIndx),secondBestIndx
         try:
             top2 = self.walkerArray[secondBestIndx[0][0]]
+            top3 = self.walkerArray[thirdBestIndx[0][0]]
         except:
             top2 = self.walkerArray[secondBestIndx[0]]
+            top3 = self.walkerArray[thirdBestIndx[0]]
         if self.random_crossover:
-            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,10))
+            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,5))
+            matingChain2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,10))
         else:
             matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
+            matingChain2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
         top1[:,matingChain] = top2[:,matingChain]
+        top1[:,matingChain2] = top3[:,matingChain2]
         self.initWalker = top1 #self.walkerArray[np.argmin(self.walkerScore)]
         self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])
         self.avgFitness = np.mean(self.walkerScore)
