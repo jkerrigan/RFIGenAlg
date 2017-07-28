@@ -26,18 +26,21 @@ class rfiGenAlg:
             except:
                 mutationRate = 1.
             self.mutRateArray.append(mutationRate)
-            if np.var(self.epochScore) > np.abs(np.mean(self.epochScore) - self.epochScore[-1]):#np.random.rand() < mutationRate:
-                try:
-                    growthVolatility = np.var(self.epochScore[:50])/np.var(self.epochScore[-50:])
-                except:
-                    growthVolatility = 0.01
-                self.growthVolArray.append(growthVolatility)
-                if np.random.rand() > 0.1:#growthVolatility:
-                    self.walkerArray.append(self.mutate(initWalker))
-                else:
+            try:
+                if np.var(self.epochScore) > np.abs(np.mean(self.epochScore) - self.epochScore[-1]):#np.random.rand() < mutationRate:
+                    try:
+                        growthVolatility = np.var(self.epochScore[:50])/np.var(self.epochScore[-50:])
+                    except:
+                        growthVolatility = 0.01
+                    self.growthVolArray.append(growthVolatility)
+                    if np.random.rand() > 0.4:#growthVolatility:
+                        self.walkerArray.append(self.mutate(initWalker))
+                    else:
                     ### Grow mutations instead of introducing new mutations
-                    self.walkerArray.append(self.growMutations(initWalker))
-            else:
+                        self.walkerArray.append(self.growMutations(initWalker))
+                else:
+                    self.walkerArray.append(initWalker)
+            except:
                 self.walkerArray.append(initWalker)
         
     def randomRFIMap(self):
@@ -55,15 +58,17 @@ class rfiGenAlg:
         hole = np.ones_like(self.data)
         sh = np.shape(hole)
         hole[:,sh[1]/2 - 20:sh[1]/2 + 20] = 0.
+        ## best results for HERA were 20
         #hole[sh[0]/2 - 5:sh[0]/2 +5,:] = 0
-        #for i in range(-10,10):
-        #    for j in range(-90,90):
+        #for i in range(-5,5):
+        #    for j in range(-20,20):
         #        hole[sh[0]/2 + i,sh[1]/2 + j] = 0.
         return hole
         
     def score(self,walker_to_score):
         delfringeScore = self.delTrans(walker_to_score)
-        self.walkerScore.append(delfringeScore)
+        ### Try multiple fitness functions: del transform and # of flags
+        self.walkerScore.append(delfringeScore + np.sum(np.logical_not(self.initWalker)))
         #print delfringeScore
         
     
@@ -81,7 +86,7 @@ class rfiGenAlg:
         mutations = np.random.randint(0,100)
         rfiMapC = np.copy(rfiMap)
         for i in range(mutations):
-            if np.random.rand()>0.0001: # I turned on minimal RFI in frequency mutations
+            if np.random.rand()>0.0: # I turned on minimal RFI in frequency mutations
                 mut_freq = np.random.randint(0,sh[1])
                 mut_time_a = np.random.randint(0,sh[0]+1)
                 mut_time_b = np.random.randint(0,sh[0]+1)
@@ -179,8 +184,18 @@ class rfiGenAlg:
         #    self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])
 
         #print np.argmin(self.walkerScore),np.argmax(np.sum(np.sum(self.walkerArray,1),1))
-                
+    
+    def livePlot(self):
+        self.plot.set_data(np.log10(np.abs(self.data*self.initWalker)))
+        pl.draw()
+        pl.show()
+        pl.pause(0.01)
+
+
+
+ 
     def runEpoch(self,num_of_walkers,epoch):
+        pl.ion()
         for i in range(num_of_walkers):
             if self.initWalker != None:
                 self.addWalker(self.initWalker)
@@ -189,6 +204,10 @@ class rfiGenAlg:
                 #self.addWalker(self.initWalker)
             self.score(i)
         self.findBestWalker()
-        self.resetWalkers()
+        self.resetWalkers()        
+        if epoch == 0:
+            self.plot = pl.imshow(np.log10(np.abs(self.data*self.initWalker)),aspect='auto',interpolation='none')
+        self.livePlot()
+
         
         

@@ -7,48 +7,51 @@ import pyuvdata
 import numpy as np
 import scipy.fftpack as sfft
 import aipy as a
-#### Note: Run GenAlg on single baseline. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
-uv = pyuvdata.miriad.Miriad()
-uv.read_miriad('/Users/Josh/Desktop/HERAdata/zen.2457574.62527.xx.HH.uvc')
-#bsl = uv.baseline_array==uv.antnums_to_baseline(20,22)
-#try:
-#    uv.read_miriad('zen.2456242.30605.uvcRREcACOTUcA')
-#except:
-#    pass
-start_time = timeit.default_timer()
-baselines = np.unique(uv.baseline_array)
+import os,sys,optparse
 
-for bl in baselines:
-    print uv.baseline_to_antnums(bl)
-    print np.argwhere(bl==baselines)/(1.*len(baselines))
-    blIndx = uv.baseline_array==bl
-    data = uv.data_array[blIndx,0,:,0]
+o = optparse.OptionParser()
+o.set_usage('pspec_prep.py [options] *.uv')
+opts, args = o.parse_args(sys.argv[1:])
+#### Note: Run GenAlg on multiple observations. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
+#occStat = np.zeros(1024)
+for obs in args:
+    print obs
+    uv = pyuvdata.miriad.Miriad()
+    uv.read_miriad(obs)
 
-#print 'Starting generation is an evolved generation.'
+    start_time = timeit.default_timer()
+    baselines = np.unique(uv.baseline_array)
 #evolvedWalker = np.load('evolvedWalker.npz.npy')
-
+    for bl in baselines[1:]:
+        blIndx = uv.baseline_array==bl
+        data = uv.data_array[blIndx,0,:,0]
+        sh = np.shape(data)
 #x = rfiGenAlg(data,random_crossover=True,initWalker=evolvedWalker)
-    if bl == baselines[0]:
-        x = rfiGenAlg(data,random_crossover=True,initWalker=None)
-        pop_size = 10
-        epochs = 1000
-    else:
-        pop_size = 10
-        epochs = 100
-        x = rfiGenAlg(data,random_crossover=True,initWalker=carryOverEvol)
-    for i in range(epochs):
-#        clear_output()
- #       print 'Generation: ',i
- #       print 'Time: ',np.round(timeit.default_timer() - start_time), ' s'
-#        sys.stdout.flush()
-        x.runEpoch(pop_size,i)
-    print x.epochScore[-1]
-    uv.flag_array[blIndx,0,:,0] = np.logical_not(x.initWalker)
-    #if bl == baselines[0]:
-    carryOverEvol = np.copy(x.initWalker)
-    carryOverEpochs = np.copy(x.epochScore)
-    del(x)
-uv.write_miriad('zen.2457574.62527.xx.HH.uvcGA')    
+        if bl == baselines[1]:
+            x = rfiGenAlg(data,random_crossover=True,initWalker=None)
+            pop_size = 40
+            epochs = 2000
+            for i in range(epochs):
+                x.runEpoch(pop_size,i)
+        #else:
+            #pop_size = 3
+            #epochs = 3
+            #x = rfiGenAlg(data,random_crossover=True,initWalker=carryOverEvol)
+        #for i in range(epochs):
+        #    x.runEpoch(pop_size,i)
+
+        if bl == baselines[1] and obs == args[0]:
+            occStat = np.sum(x.initWalker,0)/(1.*sh[0]) 
+        elif obs != args[0] and bl == baselines[1]:
+            occStat = np.mean((occStat,np.sum(x.initWalker,0)/(1.*sh[0])),0)
+        uv.flag_array[blIndx,0,:,0] = np.logical_not(x.initWalker)
+        carryOverEvol = np.copy(x.initWalker)
+        carryOverEpochs = np.copy(x.epochScore)
+        #del(x)
+    del(carryOverEvol)
+    uv.write_miriad(obs+'GA')
+    print 'Time: ',np.round(timeit.default_timer() - start_time), ' s'
+    del(uv)
 #print 'Generation per sec. :',(1.*epochs)/np.round(timeit.default_timer() - start_time)
 print np.round(timeit.default_timer() - start_time)
 #### Save the best walker for observation, this can be used as the start point
@@ -56,7 +59,9 @@ print np.round(timeit.default_timer() - start_time)
 #np.save('evolvedWalker.npz',x.initWalker)
 
 win = a.dsp.gen_window(1024,window='blackman-harris')
-
+freqs = np.linspace(100,200,1024)
+pl.plot(freqs,occStat)
+pl.show()
 run_time = np.round(timeit.default_timer() - start_time) 
 pl.subplot(411)
 pl.imshow(np.log10(np.abs(data)),aspect='auto',interpolation='none',cmap='jet')

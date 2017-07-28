@@ -11,22 +11,24 @@ from joblib import Parallel, delayed
 import multiprocessing
 #### Note: Run GenAlg on single baseline. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
 uv = pyuvdata.miriad.Miriad()
-uv.read_miriad('/Users/josh/Desktop/HERA/data/zen.2457458.17389.xx.HH.uvcU')
+uv.read_miriad('zen.2457458.30612.xx.HH.uvcU')
 
 #bsl = uv.baseline_array==uv.antnums_to_baseline(20,22)
 #try:
 #    uv.read_miriad('zen.2456242.30605.uvcRREcACOTUcA')
 #except:
 #    pass
+evolvedWalker = np.load('evolvedWalker.npz.npy')
+
 start_time = timeit.default_timer()
 baselines = np.unique(uv.baseline_array)
-print baselines
+
 def ParallelizeGenAl(uv,bl):
     blIndx = uv.baseline_array==bl
     data = uv.data_array[blIndx,0,:,0]
-    x = rfiGenAlg(data,random_crossover=True,initWalker=None)
+    x = rfiGenAlg(data,random_crossover=True,initWalker=evolvedWalker)
     pop_size = 30
-    epochs = 300
+    epochs = 50
     for i in range(epochs):
         x.runEpoch(pop_size,i)
     return np.logical_not(x.initWalker)
@@ -42,7 +44,7 @@ for i in baselines:
     uv.flag_array[:,0,:,0][blIndx] = flags[ct]
     ct+=1
 print np.shape(flags)
-uv.write_miriad('zen.2457574.62527.xx.HH.uvcGA')    
+uv.write_miriad('zen.2457458.30612.xx.HH.uvcUGA')    
 #print 'Generation per sec. :',(1.*epochs)/np.round(timeit.default_timer() - start_time)
 print np.round(timeit.default_timer() - start_time)
 #### Save the best walker for observation, this can be used as the start point

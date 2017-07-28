@@ -9,21 +9,21 @@ import scipy.fftpack as sfft
 import aipy as a
 #### Note: Run GenAlg on single baseline. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
 uv = pyuvdata.miriad.Miriad()
-uv.read_miriad('/Users/josh/Desktop/HERA/data/zen.2457458.17389.xx.HH.uvcUA')
+uv.read_miriad('zen.2457458.30612.xx.HH.uvcU',run_check=False)
 #bsl = uv.baseline_array==uv.antnums_to_baseline(20,22)
 #try:
 #    uv.read_miriad('zen.2456242.30605.uvcRREcACOTUcA')
 #except:
 #    pass
-bsl = uv.baseline_array==uv.antnums_to_baseline(9,10)
+bsl = uv.baseline_array==uv.antnums_to_baseline(9,22)
 data = uv.data_array[bsl,0,:,0]
-
-print 'Starting generation is an evolved generation.'
+print np.shape(data)
+#print 'Starting generation is an evolved generation.'
 #evolvedWalker = np.load('evolvedWalker.npz.npy')
 
 #x = rfiGenAlg(data,random_crossover=True,initWalker=evolvedWalker)
 x = rfiGenAlg(data,random_crossover=True,initWalker=None)
-pop_size = 30
+pop_size = 100
 epochs = 4000
 e_ct = 0
 start_time = timeit.default_timer()
@@ -33,6 +33,9 @@ for i in range(epochs):
     print 'Time: ',np.round(timeit.default_timer() - start_time), ' s'
     sys.stdout.flush()
     x.runEpoch(pop_size,i)
+    if i > 700:
+        if np.std(x.epochScore[-400:]) < np.mean(x.epochScore[-400:])-x.epochScore[i]:
+            break
 #    try:
 #        if 1 - x.epochScore[i]/np.average(x.epochScore[i-10:i]) < .001:
 #            if pop_size < 500:
@@ -51,7 +54,7 @@ print 'Generation per sec. :',(1.*epochs)/np.round(timeit.default_timer() - star
 
 #### Save the best walker for observation, this can be used as the start point
 #### for all other baselines, which should afford a speedup
-np.save('evolvedWalker.npz',x.initWalker)
+#np.save('evolvedWalker.npz',x.initWalker)
 
 #win = a.dsp.gen_window(1024,window='blackman-harris')
 def delTrans(data,flags):
@@ -66,7 +69,7 @@ pl.imshow(np.log10(np.abs(data)),aspect='auto',interpolation='none',cmap='jet')
 pl.subplot(412)
 pl.imshow(np.log10(np.abs(win*data*x.initWalker)),aspect='auto',interpolation='none',cmap='jet')
 pl.subplot(413)
-pl.imshow(np.log10(np.abs(delTrans(data,x.initWalker))),aspect='auto',interpolation='none',cmap='jet')
+pl.imshow(np.log10(np.abs(delTrans(data,x.initWalker)*x.mask())),aspect='auto',interpolation='none',cmap='jet')
 #x.plotRFIMap(live=False)
 pl.subplot(414)
 pl.imshow(np.log10(np.abs(sfft.fftshift(sfft.fft(win*data*x.initWalker,axis=1),axes=1))),aspect='auto',interpolation='none',cmap='jet')
