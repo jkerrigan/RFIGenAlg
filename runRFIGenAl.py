@@ -9,7 +9,7 @@ import scipy.fftpack as sfft
 import aipy as a
 #### Note: Run GenAlg on single baseline. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
 uv = pyuvdata.miriad.Miriad()
-uv.read_miriad('zen.2457458.30612.xx.HH.uvcU',run_check=False)
+uv.read_miriad('zen.2457458.60538.xx.HH.uvcU',run_check=False)
 #bsl = uv.baseline_array==uv.antnums_to_baseline(20,22)
 #try:
 #    uv.read_miriad('zen.2456242.30605.uvcRREcACOTUcA')
@@ -17,14 +17,14 @@ uv.read_miriad('zen.2457458.30612.xx.HH.uvcU',run_check=False)
 #    pass
 bsl = uv.baseline_array==uv.antnums_to_baseline(9,22)
 data = uv.data_array[bsl,0,:,0]
-print np.shape(data)
+sh = np.shape(data)
 #print 'Starting generation is an evolved generation.'
 #evolvedWalker = np.load('evolvedWalker.npz.npy')
-
+pad = 10
 #x = rfiGenAlg(data,random_crossover=True,initWalker=evolvedWalker)
-x = rfiGenAlg(data,random_crossover=True,initWalker=None)
+x = rfiGenAlg(data,random_crossover=True,initWalker=None,pad=pad,live=True)
 pop_size = 100
-epochs = 4000
+epochs = 1000
 e_ct = 0
 start_time = timeit.default_timer()
 for i in range(epochs):
@@ -33,8 +33,9 @@ for i in range(epochs):
     print 'Time: ',np.round(timeit.default_timer() - start_time), ' s'
     sys.stdout.flush()
     x.runEpoch(pop_size,i)
-    if i > 700:
-        if np.std(x.epochScore[-400:]) < np.mean(x.epochScore[-400:])-x.epochScore[i]:
+    if i > 2000:
+        if np.std(x.epochScore[-600:]) < np.mean(x.epochScore[-600:])-x.epochScore[i]:
+            print i
             break
 #    try:
 #        if 1 - x.epochScore[i]/np.average(x.epochScore[i-10:i]) < .001:
@@ -65,14 +66,14 @@ def delTrans(data,flags):
 win = a.dsp.gen_window(1024,window='blackman-harris')
 run_time = np.round(timeit.default_timer() - start_time) 
 pl.subplot(411)
-pl.imshow(np.log10(np.abs(data)),aspect='auto',interpolation='none',cmap='jet')
+pl.imshow(np.log10(np.abs(data[pad:pad+sh[0]])),aspect='auto',interpolation='none',cmap='jet')
 pl.subplot(412)
-pl.imshow(np.log10(np.abs(win*data*x.initWalker)),aspect='auto',interpolation='none',cmap='jet')
+pl.imshow(np.log10(np.abs(win*data*x.initWalker[pad:pad+sh[0],:])),aspect='auto',interpolation='none',cmap='jet')
 pl.subplot(413)
-pl.imshow(np.log10(np.abs(delTrans(data,x.initWalker)*x.mask())),aspect='auto',interpolation='none',cmap='jet')
+pl.imshow(np.log10(np.abs(delTrans(data,x.initWalker[pad:pad+sh[0],:])*x.mask()[pad:pad+sh[0],:])),aspect='auto',interpolation='none',cmap='jet')
 #x.plotRFIMap(live=False)
 pl.subplot(414)
-pl.imshow(np.log10(np.abs(sfft.fftshift(sfft.fft(win*data*x.initWalker,axis=1),axes=1))),aspect='auto',interpolation='none',cmap='jet')
+pl.imshow(np.log10(np.abs(sfft.fftshift(sfft.fft(win*data*x.initWalker[pad:pad+sh[0],:],axis=1),axes=1))),aspect='auto',interpolation='none',cmap='jet')
 pl.savefig('RFIEvolved_'+str(run_time)+'.png')
 pl.close()
 

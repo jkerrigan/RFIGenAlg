@@ -14,6 +14,7 @@ o.set_usage('pspec_prep.py [options] *.uv')
 opts, args = o.parse_args(sys.argv[1:])
 #### Note: Run GenAlg on multiple observations. Add in ability to take this as starting position for all baselines in the same observation, maybe even for future observations?
 #occStat = np.zeros(1024)
+pad = 10
 for obs in args:
     print obs
     uv = pyuvdata.miriad.Miriad()
@@ -28,27 +29,31 @@ for obs in args:
         sh = np.shape(data)
 #x = rfiGenAlg(data,random_crossover=True,initWalker=evolvedWalker)
         if bl == baselines[1]:
-            x = rfiGenAlg(data,random_crossover=True,initWalker=None)
-            pop_size = 40
-            epochs = 2000
+            x = rfiGenAlg(data,random_crossover=True,pad=10,initWalker=None)
+            pop_size = 50
+            epochs = 1000
             for i in range(epochs):
                 x.runEpoch(pop_size,i)
+                #if i > 1000:
+                #    if np.std(x.epochScore[-500:]) < np.mean(x.epochScore[-500:])-x.epochScore[i]:
+                #        print i
+                #        break
         #else:
             #pop_size = 3
             #epochs = 3
             #x = rfiGenAlg(data,random_crossover=True,initWalker=carryOverEvol)
         #for i in range(epochs):
         #    x.runEpoch(pop_size,i)
-
+        flags = x.initWalker[pad:pad+sh[0],:]
         if bl == baselines[1] and obs == args[0]:
-            occStat = np.sum(x.initWalker,0)/(1.*sh[0]) 
+            occStat = np.sum(flags,0)/(1.*sh[0]) 
         elif obs != args[0] and bl == baselines[1]:
-            occStat = np.mean((occStat,np.sum(x.initWalker,0)/(1.*sh[0])),0)
-        uv.flag_array[blIndx,0,:,0] = np.logical_not(x.initWalker)
-        carryOverEvol = np.copy(x.initWalker)
-        carryOverEpochs = np.copy(x.epochScore)
+            occStat = np.mean((occStat,np.sum(flags,0)/(1.*sh[0])),0)
+        uv.flag_array[blIndx,0,:,0] = np.logical_not(flags)
+        #carryOverEvol = np.copy(x.initWalker)
+        #carryOverEpochs = np.copy(x.epochScore)
         #del(x)
-    del(carryOverEvol)
+    #del(carryOverEvol)
     uv.write_miriad(obs+'GA')
     print 'Time: ',np.round(timeit.default_timer() - start_time), ' s'
     del(uv)
