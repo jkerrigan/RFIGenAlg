@@ -3,6 +3,7 @@ import pyuvdata
 import pylab as pl
 import scipy.fftpack as sfft
 import aipy as a
+from statsmodels import robust
 
 class rfiGenAlg:
     
@@ -30,8 +31,8 @@ class rfiGenAlg:
     
         
     def addWalker(self,initWalker=None):
-        if initWalker == None:
-            self.walkerArray.append(self.mutate(np.ones(self.data.shape))) #self.randomRFIMap())
+        if initWalker is None:
+            self.walkerArray.append(self.mutate2(np.ones(self.data.shape))) #self.randomRFIMap())
         else:
             #if np.random.rand()<0.2: Replaced with an adaptive mutation rate
             try:
@@ -40,17 +41,17 @@ class rfiGenAlg:
                 mutationRate = 1.
             self.mutRateArray.append(mutationRate)
             try:
-                if np.random.rand() < 0.5:#np.var(self.epochScore) > np.abs(np.mean(self.epochScore) - self.epochScore[-1]):#np.random.rand() < mutationRate:
+                if np.random.rand() < mutationRate:#np.var(self.epochScore) > np.abs(np.mean(self.epochScore) - self.epochScore[-1]):#np.random.rand() < mutationRate:
                     try:
                         growthVolatility = np.var(self.epochScore[:50])/np.var(self.epochScore[-50:])
                     except:
                         growthVolatility = 0.01
                     self.growthVolArray.append(growthVolatility)
-                    if np.random.rand() > 0.3:#growthVolatility:
-                        self.walkerArray.append(self.mutate(initWalker))
-                    else:
+                    #if np.random.rand() > 0.5:#growthVolatility:
+                    self.walkerArray.append(self.mutate2(initWalker))
+                    #else:
                     ### Grow mutations instead of introducing new mutations
-                        self.walkerArray.append(self.growMutations(initWalker))
+                    #    self.walkerArray.append(self.growMutations(initWalker))
                 else:
                     self.walkerArray.append(initWalker)
             except:
@@ -61,11 +62,19 @@ class rfiGenAlg:
         return rfiMap
     
     def delTrans(self,walker_to_score):
+        # Try a new score method, Power in waterfall
+        win = a.dsp.gen_window(np.shape(self.walkerArray[walker_to_score])[1],window='blackman-harris')
+        rfi_flags = np.sum(self.walkerArray[walker_to_score]==0)
+        null_flags = np.sum(self.walkerArray[walker_to_score]==1)
+#        power = np.sum(np.abs(self.data*self.walkerArray[walker_to_score]))
         WA_ = sfft.fftshift(sfft.fft(self.data*self.walkerArray[walker_to_score],axis=1),axes=1)
         #WA_ = sfft.fftshift(sfft.fft(self.data*self.walkerArray[walker_to_score],axis=0),axes=0)
         #_WA = np.fft.fftshift(np.fft.fft(WA_,axis=0),axes=0)
         ma_WA = self.mask()*WA_
-        return np.sum(np.abs(ma_WA)[self.pad:self.pad+self.sh_prior[0],:])
+        ## Added to penalize for too many missing data
+        #return power + np.exp(rfi_flags/null_flags)
+        return np.exp(10*rfi_flags/null_flags) + np.sum(np.abs(ma_WA)[self.pad:self.pad+self.sh_prior[0],:])
+
         
     def mask(self):
         hole = np.ones_like(self.data)
@@ -82,7 +91,7 @@ class rfiGenAlg:
         delfringeScore = self.delTrans(walker_to_score)
         ### Try multiple fitness functions: del transform and # of flags
         try:
-            self.walkerScore.append(delfringeScore + np.sum(np.logical_not(self.initWalker[self.pad:self.pad+self.sh_prior[0],:])))
+            self.walkerScore.append(delfringeScore)# + np.sum(np.logical_not(self.initWalker[self.pad:self.pad+self.sh_prior[0],:])))
         except:
             self.walkerScore.append(delfringeScore)
         #print delfringeScore
@@ -92,6 +101,35 @@ class rfiGenAlg:
         pl.imshow(self.initWalker,aspect='auto',interpolation='none')
         if live:
             pl.show()
+
+    def mutate2(self,rfiMap):
+        # Mutate 2 is specifically for a folded visibilitity
+        # Try mutating on maximal pixels!
+        sh = np.shape(rfiMap)
+        hard_muts = np.random.randint(10,50)
+        #soft_muts1 = np.random.randint(0,sh[0],size=10)
+        #soft_muts2 = np.random.randint(0,sh[1],size=10)
+        rfiMapC = np.copy(rfiMap)
+        absData = np.abs(self.data*rfiMapC)
+        absData -= np.median(absData)
+        #med = robust.mad(self.data*rfiMapC)
+        #max_idxs = np.sort(np.abs(absData).reshape(-1))[::-1]
+        med_removed = np.sort(absData.reshape(-1))[::-1]
+        med_removed = med_removed[:hard_muts]
+        #med_removed = np.random.choice(med_removed,size=hard_muts)
+        #np.argwhere(maxima[mutations:] == np.abs(self.data))
+        mut_times = np.random.randint(0,sh[0],size=hard_muts)
+        mut_freqs = np.random.randint(0,sh[1],size=hard_muts)
+        for m in med_removed:
+            mut_time,mut_freq = np.argwhere(m == absData)[0]
+            if np.random.rand() > .9:
+                rfiMapC[mut_time,mut_freq] = 1#np.random.randint(0,2)
+            else:
+                rfiMapC[mut_time,mut_freq] = 0
+            
+        #rfiMap[soft_muts1,soft_muts2] = np.random.randint(0,2,size=10)
+        return rfiMapC
+                        
         
     def mutate(self,rfiMap):
         #if np.random.rand()>0.5:
@@ -209,14 +247,23 @@ class rfiGenAlg:
             top2 = self.walkerArray[secondBestIndx[0]]
             top3 = self.walkerArray[thirdBestIndx[0]]
         if self.random_crossover:
-            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,50))
-            matingChain2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,100))
+            mCfreq = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(1,50))
+            mCtime = np.random.randint(0,self.data.shape[0],size=self.data.shape[1]/np.random.randint(1,50))
+            mCfreq2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/np.random.randint(50,100))
+            mCtime2 = np.random.randint(0,self.data.shape[0],size=self.data.shape[1]/np.random.randint(50,100))
+            top1[:,mCfreq] = top2[:,mCfreq]
+            top1[mCtime,:] = top2[mCtime,:]
+            top1[:,mCfreq2] = top3[:,mCfreq2]
+            top1[mCtime2,:] = top3[mCtime2,:]
         else:
-            matingChain = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
-            matingChain2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
-        top1[:,matingChain] = top2[:,matingChain]
-        top1[:,matingChain2] = top3[:,matingChain2]
-        self.initWalker = top1 #self.walkerArray[np.argmin(self.walkerScore)]
+            mCtime = np.random.randint(0,self.data.shape[0],size=self.data.shape[1]/2) 
+            mCfreq = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
+            
+            #matingChain2 = np.random.randint(0,self.data.shape[1],size=self.data.shape[1]/2)
+            top1[:,mCfreq] = top2[:,mCfreq]
+            top1[mCtime,:] = top2[mCtime,:]
+        #top1[:,matingChain2] = top3[:,matingChain2]
+        self.initWalker = np.copy(top1) #self.walkerArray[np.argmin(self.walkerScore)]
         self.epochScore.append(self.walkerScore[np.argmin(self.walkerScore)])
         self.avgFitness = np.mean(self.walkerScore)
         #else:
@@ -225,23 +272,21 @@ class rfiGenAlg:
         #print np.argmin(self.walkerScore),np.argmax(np.sum(np.sum(self.walkerArray,1),1))
     
     def livePlot(self):
-        waterfall = np.log10(np.abs(self.data*self.initWalker)[10:66,:])
+        waterfall = np.log10(np.abs(self.data*self.initWalker))#[10:66,:])
         self.plot.set_data(waterfall)
         #self.plot.set_clim(np.min(waterfall),np.max(waterfall))
-        WATERFALL = np.log10(np.abs(np.fft.fftshift(np.fft.fft(self.data*self.initWalker*self.win,axis=1),axes=1)))[10:66,:]
+        WATERFALL = np.log10(np.abs(np.fft.fftshift(np.fft.fft(self.data*self.initWalker*self.win,axis=1),axes=1)))#[10:66,:]
         self.plotDelay.set_data(WATERFALL)
         self.plotDelay.set_clim(np.min(WATERFALL),np.max(WATERFALL))
         pl.draw()
         pl.show()
         pl.pause(0.001)
-
-
-
+        
  
     def runEpoch(self,num_of_walkers,epoch):
         pl.ion()
         for i in range(num_of_walkers):
-            if self.initWalker != None:
+            if type(self.initWalker) != None:
                 self.addWalker(self.initWalker)
             else:
                 self.addWalker()
@@ -256,8 +301,7 @@ class rfiGenAlg:
                 self.plot = pl.imshow(np.log10(np.abs(self.data*self.initWalker))[10:66,:],aspect='auto',interpolation='none')
                 pl.subplot(212)
                 self.plotDelay = pl.imshow(np.log10(np.abs(np.fft.fftshift(np.fft.fft(self.data*self.initWalker,axis=1),axes=1)))[10:66,:],aspect='auto',interpolation='none')
+                
         if self.live:
             self.livePlot()
-
-        
         
